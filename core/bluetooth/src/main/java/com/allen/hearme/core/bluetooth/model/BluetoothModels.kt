@@ -5,6 +5,7 @@ enum class AudioDeviceType {
     BLUETOOTH_HEADSET,
     WIRED_HEADPHONES,
     WIRED_HEADSET,
+    USB_HEADSET,
     BUILTIN_SPEAKER,
     UNKNOWN
 }

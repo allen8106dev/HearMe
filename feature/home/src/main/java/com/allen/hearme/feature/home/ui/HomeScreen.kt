@@ -1,8 +1,9 @@
 package com.allen.hearme.feature.home.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.filled.HeadphonesBattery
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.ModelTraining
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,12 +33,14 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +55,8 @@ fun HomeScreen(
     listeningStatusText: String,
     earphoneName: String?,
     isEarphoneConnected: Boolean,
+    rmsEnergy: Float = 0f,
+    isSpeechActive: Boolean = false,
     onNavigateToTraining: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -66,7 +70,7 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // App Header / Branding
+        // ── App Header ────────────────────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -107,37 +111,35 @@ fun HomeScreen(
             }
 
             // Status chip
+            val chipBg = if (isSmartListeningOn) MaterialTheme.colorScheme.primaryContainer
+                         else MaterialTheme.colorScheme.surfaceVariant
+            val chipText = if (isSmartListeningOn) "ACTIVE" else "STANDBY"
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (isSmartListeningOn) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    .background(chipBg)
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = if (isSmartListeningOn) "ACTIVE" else "STANDBY",
+                    text = chipText,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = if (isSmartListeningOn) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        // Smart Listening Main Control Card
+        // ── Smart Listening Control Card ───────────────────────────────────────
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.elevatedCardColors(
                 containerColor = if (isSmartListeningOn) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surface
+                                 else MaterialTheme.colorScheme.surface
             )
         ) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -149,15 +151,16 @@ fun HomeScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (isSmartListeningOn) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onSurface
+                                    else MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (isSmartListeningOn) "Listening for speech directed to you"
-                            else "Paused. Switch on to enable detection.",
+                                   else "Paused. Switch on to enable detection.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (isSmartListeningOn) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                            else MaterialTheme.colorScheme.outline
+                            color = if (isSmartListeningOn)
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                else MaterialTheme.colorScheme.outline
                         )
                     }
 
@@ -173,7 +176,7 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Current Listening Status Pill
+                // Status pill
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -189,7 +192,9 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(10.dp)
                             .background(
-                                color = if (isSmartListeningOn) Color(0xFF4CAF50) else Color(0xFF9E9E9E),
+                                color = if (isSpeechActive) Color(0xFF4CAF50)
+                                        else if (isSmartListeningOn) Color(0xFF2196F3)
+                                        else Color(0xFF9E9E9E),
                                 shape = CircleShape
                             )
                     )
@@ -201,10 +206,57 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
+
+                // ── VAD Energy Bar (shown only while service is active) ─────────
+                AnimatedVisibility(visible = isSmartListeningOn) {
+                    Column(modifier = Modifier.padding(top = 12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Audio Level",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                            if (isSpeechActive) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF4CAF50))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "SPEECH",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val animatedRms by animateFloatAsState(
+                            targetValue = rmsEnergy.coerceIn(0f, 1f),
+                            animationSpec = tween(durationMillis = 100),
+                            label = "rmsEnergy"
+                        )
+                        LinearProgressIndicator(
+                            progress = { animatedRms },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = if (isSpeechActive) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
+                }
             }
         }
 
-        // Earphone Connection Status Card
+        // ── Earphone Connection Status Card ────────────────────────────────────
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -223,17 +275,17 @@ fun HomeScreen(
                         .size(40.dp)
                         .background(
                             color = if (isEarphoneConnected) MaterialTheme.colorScheme.secondaryContainer
-                            else MaterialTheme.colorScheme.surface,
+                                    else MaterialTheme.colorScheme.surface,
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (isEarphoneConnected) Icons.Default.Headphones
-                        else Icons.Default.HeadphonesBattery,
+                                      else Icons.Default.HeadphonesBattery,
                         contentDescription = "Earphones",
                         tint = if (isEarphoneConnected) MaterialTheme.colorScheme.onSecondaryContainer
-                        else MaterialTheme.colorScheme.outline,
+                               else MaterialTheme.colorScheme.outline,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -248,7 +300,7 @@ fun HomeScreen(
                     )
                     Text(
                         text = if (isEarphoneConnected) (earphoneName ?: "Connected Earphones")
-                        else "No Earphones Connected",
+                               else "No Earphones Connected",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -273,7 +325,7 @@ fun HomeScreen(
             }
         }
 
-        // Prominent Start Training Button
+        // ── Training Card ──────────────────────────────────────────────────────
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -281,9 +333,7 @@ fun HomeScreen(
                 containerColor = MaterialTheme.colorScheme.surface
             )
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -335,16 +385,14 @@ fun HomeScreen(
             }
         }
 
-        // Quick Navigation Section
+        // ── Quick Navigation ────────────────────────────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedButton(
                 onClick = onNavigateToHistory,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp),
+                modifier = Modifier.weight(1f).height(44.dp),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Icon(
@@ -358,9 +406,7 @@ fun HomeScreen(
 
             OutlinedButton(
                 onClick = onNavigateToSettings,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp),
+                modifier = Modifier.weight(1f).height(44.dp),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Icon(

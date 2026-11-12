@@ -8,6 +8,7 @@ import com.allen.hearme.core.database.fake.FakeUserPreferencesRepository
 import com.allen.hearme.core.database.preferences.DetectionSensitivity
 import com.allen.hearme.core.database.preferences.MusicInterruptionBehavior
 import com.allen.hearme.feature.smartlistening.FakeListeningOrchestrator
+import com.allen.hearme.service.FakeServiceController
 import com.allen.hearme.ui.HearMeViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,6 +28,7 @@ import org.junit.Test
 class HearMeViewModelTest {
 
     private val testDispatcher = StandardTestDispatcher()
+    private lateinit var serviceController: FakeServiceController
     private lateinit var orchestrator: FakeListeningOrchestrator
     private lateinit var earphoneMonitor: FakeEarphoneConnectionMonitor
     private lateinit var preferencesRepo: FakeUserPreferencesRepository
@@ -36,12 +38,14 @@ class HearMeViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        serviceController = FakeServiceController()
         orchestrator = FakeListeningOrchestrator()
         earphoneMonitor = FakeEarphoneConnectionMonitor()
         preferencesRepo = FakeUserPreferencesRepository()
         sessionRepo = FakeListeningSessionRepository()
 
         viewModel = HearMeViewModel(
+            serviceController = serviceController,
             orchestrator = orchestrator,
             earphoneMonitor = earphoneMonitor,
             preferencesRepository = preferencesRepo,
@@ -61,11 +65,13 @@ class HearMeViewModelTest {
 
         viewModel.toggleSmartListening(true)
         advanceUntilIdle()
-        assertTrue(viewModel.uiState.value.isSmartListeningOn)
+        assertTrue(serviceController.isRunning)
+        assertEquals(1, serviceController.startCallCount)
 
         viewModel.toggleSmartListening(false)
         advanceUntilIdle()
-        assertFalse(viewModel.uiState.value.isSmartListeningOn)
+        assertFalse(serviceController.isRunning)
+        assertEquals(1, serviceController.stopCallCount)
     }
 
     @Test

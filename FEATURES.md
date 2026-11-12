@@ -22,10 +22,11 @@ HearMe provides an intelligent audio-awareness layer between the user and their 
 | **User Interface** | Training Placeholder | Comprehensive roadmap & visual cards explaining forthcoming model training | **Implemented & Tested** | M1 |
 | **User Interface** | Settings Screen | Interactive sensitivity picker, auto-activation toggle, ducking vs pausing radio | **Implemented & Tested** | M1 |
 | **User Interface** | History Screen | Chronological session list, trigger sources, outcomes, and clear-history action | **Implemented & Tested** | M1 |
-| **Audio Processing** | PCM Audio Capture | Low-latency AudioRecord buffer management with background thread dispatching | Contract Established (Fake) | M2 |
-| **Audio Processing** | Speech Activity Detection | On-device Voice Activity Detection (VAD) via Silero/WebRTC | Contract Established (Fake) | M2 |
-| **Bluetooth & Routing** | Earphone Auto-Detection | BroadcastReceiver / AudioManager audio device routing listener | Contract Established (Fake) | M2 |
-| **Media Control** | Media Ducking / Pausing | Android MediaSession / AudioFocus controller to pause and lower music | Contract Established (Fake) | M2 |
+| **Audio Processing** | PCM Audio Capture | Low-latency AudioRecord buffer management with background thread dispatching | **Implemented (Real AudioRecord)** | M2 |
+| **Audio Processing** | Speech Activity Detection | On-device Voice Activity Detection (VAD) via RMS energy and adaptive noise tracking | **Implemented (EnergyVadDetector)** | M2 |
+| **Bluetooth & Routing** | Earphone Auto-Detection | AudioDeviceCallback hardware detection (BT A2DP, BT SCO, Wired, USB) | **Implemented (RealEarphoneConnectionMonitor)** | M2 |
+| **Service & Lifecycle** | Foreground Service | Foreground microphone service with persistent notification and stop action | **Implemented (SmartListeningService)** | M2 |
+| **Media Control** | Media Ducking / Pausing | Android MediaSession / AudioFocus controller to pause and lower music | Contract Established (Stubs) | M3 |
 | **Intelligence** | Directed Speech Filter | Differentiating acoustic direction & proximity (speaker addressing listener) | Contract Established (Fake) | M3 |
 | **Intelligence** | Keyword & Name Spotting | Local Wake-word / Name recognition without cloud connection | Contract Established (Fake) | M3 |
 | **Personalization** | Voice Profiling | Training user's voice model without earphones to prevent self-interruption | Architectural Placeholder | M4 |

@@ -1,11 +1,14 @@
 package com.allen.hearme.feature.smartlistening.model
 
 enum class ListeningState {
-    IDLE,
+    STANDBY,
+    STARTING,
     ACTIVE_LISTENING,
     SPEECH_DETECTED,
     INTERRUPTING_MUSIC,
-    RECOVERING,
+    MICROPHONE_UNAVAILABLE,
+    INTERRUPTED,
+    STOPPED,
     ERROR
 }
 

@@ -30,6 +30,21 @@ class CoreBluetoothTest {
     }
 
     @Test
+    fun monitorTracksWiredAndUsbHeadsets() {
+        val monitor = FakeEarphoneConnectionMonitor()
+
+        val wiredHeadphones = AudioDeviceInfo("wired-1", "3.5mm Headphones", AudioDeviceType.WIRED_HEADPHONES)
+        monitor.setConnected(wiredHeadphones)
+        assertTrue(monitor.isEarphoneConnected())
+        assertEquals(AudioDeviceType.WIRED_HEADPHONES, monitor.connectedDevice.value?.type)
+
+        val usbHeadset = AudioDeviceInfo("usb-1", "USB-C Audio", AudioDeviceType.USB_HEADSET)
+        monitor.setConnected(usbHeadset)
+        assertTrue(monitor.isEarphoneConnected())
+        assertEquals(AudioDeviceType.USB_HEADSET, monitor.connectedDevice.value?.type)
+    }
+
+    @Test
     fun deviceStateProviderDetectsHeadsetPresence() {
         val speaker = AudioDeviceInfo("spk", "Speaker", AudioDeviceType.BUILTIN_SPEAKER)
         val provider = FakeAudioDeviceStateProvider(listOf(speaker))

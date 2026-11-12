@@ -21,63 +21,46 @@ HearMe enforces strict testability through Clean Architecture:
 - `audioCaptureStreamEmitsCorrectly`: Verifies unbuffered audio chunk emission and collection over `Flow<AudioChunk>`.
 - `speechActivityDetectorReportsActivity`: Verifies confidence, energy RMS metrics, and detector reset count.
 - `segmentProcessorReturnsResult`: Verifies chunk aggregation and segment processing.
+- `rmsCalculationOnSilenceReturnsZero`: Mathematical verification that zero-filled PCM returns 0.0f RMS.
+- `rmsCalculationOnSineWaveReturnsExpectedValue`: Mathematical verification that 0.7071 amplitude sine wave yields ~0.50f RMS.
+- `vadSilenceBelowThresholdDoesNotTriggerSpeech`: Verifies quiet background chunks remain `hasSpeech = false` and 0.0 confidence.
+- `vadSpeechAboveThresholdTriggersSpeechAfterMinDuration`: Verifies that speech requires sustained energy exceeding `minSpeechDurationMs` (temporal hysteresis).
+- `vadSilenceHangoverPreservesSpeechStateTemporarily`: Verifies hangover window maintains active speech during brief pauses between words, and clears after timeout.
+- `vadResetCleansInternalState`: Verifies that `reset()` reinitializes noise floor and temporal timestamps.
 
 ### `core:bluetooth` (`CoreBluetoothTest.kt`)
 - `monitorTracksEarphoneConnectionTransitions`: Verifies connection, disconnection, and device metadata propagation.
+- `monitorTracksWiredAndUsbHeadsets`: Verifies 3.5 mm wired headphones and USB-C headsets are correctly identified.
 - `deviceStateProviderDetectsHeadsetPresence`: Verifies differentiation between internal speakers and wired/Bluetooth headphones.
-
-### `core:media` (`CoreMediaTest.kt`)
-- `playbackControllerRecordsActionsAndVolume`: Verifies volume ducking ratios, pause, resume, and action history.
-- `audioFocusManagerRequestsAndAbandonsFocus`: Verifies audio focus request and abandon flows.
-
-### `core:ml` (`CoreMlTest.kt`)
-- `speechRecognizerReturnsTranscription`: Verifies speech transcription payload and confidence extraction.
-- `speechClassifierIdentifiesDirectedSpeech`: Verifies directed vs ambient speech discrimination based on confidence thresholds.
-- `confidenceEvaluatorComputesScoreAndThreshold`: Verifies multi-stage weighted confidence evaluation against user threshold.
-- `trainingAndFeedbackPipelineRecordsSamples`: Verifies on-device training sample accumulation, feedback recording, and parameter offset updates.
-
-### `core:database` (`CoreDatabaseTest.kt`)
-- `listeningSessionRepositoryPerformsCrud`: Verifies session insert, query by ID, update, and clear-all operations.
-- `trainingExampleRepositoryManagesExamples`: Verifies saving, retrieving, counting, and deleting training examples.
-- `modelMetadataRepositoryStoresAndRetrieves`: Verifies metadata registration and retrieval.
-- `userPreferencesRepositoryUpdatesAndEmits`: Verifies DataStore preference mutation and reactive flow emission.
 
 ### `feature:smartlistening` (`SmartListeningTest.kt`)
 - `decisionEngineEvaluatesInterruptionAction`: Verifies heuristic decision making (ignoring ambient noise, ducking/pausing when directed speech occurs with earphones connected).
-- `orchestratorTransitionsStateCorrectly`: Verifies coordinated state transitions between Audio, Bluetooth, Media, and UI states.
+- `orchestratorStartsInStandbyState`: Verifies orchestrator starts in honest `STANDBY` state.
+- `orchestratorTransitionsToActiveOnStart`: Verifies transition to `ACTIVE_LISTENING` upon successful audio capture start.
+- `orchestratorTransitionsToStandbyOnStop`: Verifies graceful return to `STANDBY` when stopped.
+- `orchestratorTransitionsToMicUnavailableOnPermissionError`: Verifies transition to `MICROPHONE_UNAVAILABLE` on `SecurityException`.
+- `fakeOrchestratorTransitionsCorrectly`: Verifies fake orchestrator lifecycle.
 
 ### `app` (`HearMeViewModelTest.kt`)
-- `togglingSmartListeningUpdatesState`: Verifies ViewModel state changes when user toggles the master switch.
+- `togglingSmartListeningUpdatesState`: Verifies ViewModel routes toggle commands to `ServiceController` without direct Android Context dependency.
 - `earphoneConnectionUpdatesUiState`: Verifies earphone state updates trigger auto-activation and UI reflection.
 - `preferencesUpdateChangesUiState`: Verifies changes to sensitivity and music interruption mode propagate to UI state.
 
 ---
 
-## 3. Command Line Verification
-
-To run all unit tests:
-```bash
-./gradlew test
-```
-
-To assemble the debug APK:
-```bash
-./gradlew assembleDebug
-```
-
-
----
-
-## 3. Milestone 1.1 Architecture Audit Verification
+## 3. Milestone 2 Verification Summary
 
 - **Full Test Suite Execution (`.\gradlew.bat test`)**:
   - `BUILD SUCCESSFUL` across all 13 modules.
-  - Zero test failures, 100% test pass rate across core contracts and feature modules.
-- **Dependency Injection Verification**:
-  - Successfully migrated from manual `AppContainer` to **Dagger Hilt** (`2.55`) using KSP (`2.2.10-2.0.2`).
-  - Unit tests retain direct test double construction without requiring mockito or heavy android instrumentation.
+  - Zero test failures, 100% test pass rate across core contracts, real VAD engine, and feature modules.
+- **Hardware Abstraction & DI Verification**:
+  - `RealAudioCaptureManager` wired via Hilt using `VOICE_RECOGNITION` audio source and 16 kHz mono PCM 16-bit format.
+  - `RealEarphoneConnectionMonitor` wired via Hilt implementing both `EarphoneConnectionMonitor` and `AudioDeviceStateProvider`.
+  - `EnergyVadDetector` wired via Hilt implementing `SpeechActivityDetector`.
+  - `SmartListeningService` registered as foreground service (`microphone`) with persistent notification.
+  - `ServiceController` abstraction decouples ViewModels from `android.content.Context`.
 - **Emulator Validation (`emulator-5554`)**:
-  - APK generated via `:app:assembleDebug`.
-  - Installed via `adb install -r`.
-  - Launched without crash (`AndroidRuntime:E` clean).
-  - Confirmed UI renders `STANDBY` (not ACTIVE) and `DISCONNECTED` (not CONNECTED), guaranteeing honest status behavior.
+  - Debug APK built and installed via `adb install -r`.
+  - Launched without crash (`am start` confirmed active).
+  - Top resumed activity: `com.allen.hearme/.MainActivity`.
+  - Real-time VAD energy indicator and speech detection pill integrated cleanly into the Compose UI.

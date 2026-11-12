@@ -1,6 +1,6 @@
 # HearMe: Strategic Product & Technical Roadmap
 
-## Milestone 1: Project Foundation & Architecture (Current)
+## Milestone 1: Project Foundation & Architecture (Completed)
 - Complete multi-module Gradle configuration (13 logical modules).
 - Clean Architecture contracts established for Audio, Bluetooth, Media, ML, and Orchestration.
 - Unit-tested test doubles for all core subsystems.
@@ -10,15 +10,25 @@
 
 ---
 
-## Milestone 2: Audio Engine & System Integrations
-- Concrete `AudioCaptureManager` using Android `AudioRecord` with 16kHz 16-bit PCM streaming.
-- `EarphoneConnectionMonitor` listening for Bluetooth Headset (A2DP / SCO) and wired headphone broadcasts via `AudioManager.registerAudioDeviceCallback`.
-- Foreground service implementation (`SmartListeningService`) with `FOREGROUND_SERVICE_MICROPHONE`.
-- Audio focus and media playback controller implementing pause/resume and audio ducking.
+## Milestone 1.1: Architecture Audit & Hilt Migration (Completed)
+- Migrated from manual `AppContainer` to Dagger Hilt 2.55.
+- Verified SDK compatibility: `compileSdk release(37)`, `targetSdk 36`, `minSdk 29`.
+- Isolated test doubles from production DI bindings.
+- Honest status guarantee: UI displays `STANDBY` and `DISCONNECTED` until real hardware confirms activation.
 
 ---
 
-## Milestone 3: Speech Activity Detection & Intent Modeling
+## Milestone 2: Real Audio Engine, Earphone Detection & Voice Activity Detection (Completed)
+- Concrete `AudioCaptureManager` using Android `AudioRecord` with 16kHz 16-bit mono PCM streaming via `VOICE_RECOGNITION`.
+- Real `EarphoneConnectionMonitor` using `AudioManager` and `AudioDeviceCallback` for Bluetooth A2DP, SCO, wired, and USB earphones.
+- Real-time energy-based `SpeechActivityDetector` (`EnergyVadDetector`) with RMS calculation, adaptive noise floor tracking, and temporal hysteresis.
+- `SmartListeningService` foreground microphone service with persistent notification and stop action.
+- Dynamic `RECORD_AUDIO` permission workflow in UI.
+- Real-time audio level progress bar and speech indicator on the Home dashboard.
+
+---
+
+## Milestone 3: Speech Activity Detection & Intent Modeling (Next)
 - Local Voice Activity Detection (VAD) using ONNX Runtime / TensorFlow Lite (Silero VAD model).
 - Directed speech classifier to differentiate ambient babble from nearby speakers directly addressing the user.
 - Keyword / User-name recognition model operating completely offline.

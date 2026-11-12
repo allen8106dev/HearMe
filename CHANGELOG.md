@@ -2,6 +2,52 @@
 
 All notable changes to the HearMe Android application are documented in this file.
 
+## [0.2.0] - Milestone 2: Real Audio Engine, Earphone Detection & Voice Activity Detection
+
+### Added
+- **Real Microphone Audio Capture (`RealAudioCaptureManager`)**:
+  - Implemented `AudioCaptureManager` using Android `AudioRecord`.
+  - Captures mono, 16 kHz, 16-bit PCM using `VOICE_RECOGNITION` audio source.
+  - Dedicated coroutine dispatcher (`Dispatchers.IO`) prevents main-thread blocking.
+  - Robust permission check, initialization recovery, and explicit resource disposal.
+  - Ephemeral memory handling: raw audio is never written to disk storage.
+- **Real Earphone Connection Monitor (`RealEarphoneConnectionMonitor`)**:
+  - Implemented `EarphoneConnectionMonitor` and `AudioDeviceStateProvider` using `AudioDeviceCallback`.
+  - Real-time reactive detection of Bluetooth A2DP, Bluetooth SCO, 3.5 mm wired headsets, wired headphones, and USB audio peripherals.
+  - Safe extraction of device names respecting `BLUETOOTH_CONNECT` permission on Android 12+.
+- **Real-Time Voice Activity Detection (`EnergyVadDetector`)**:
+  - Implemented lightweight, zero-allocation energy-based VAD using Root Mean Square (RMS) calculation.
+  - Exponentially smoothed adaptive ambient noise floor (`alpha = 0.05`).
+  - Minimum speech duration requirement (`120ms`) prevents clicks and spikes from triggering false alarms.
+  - Silence hangover delay (`300ms`) ensures smooth continuity during natural speech pauses.
+  - Continuous speech activity likelihood calculation.
+- **Foreground Listening Service (`SmartListeningService`)**:
+  - Foreground service with `FOREGROUND_SERVICE_MICROPHONE` type and persistent notification.
+  - One-tap "Stop Listening" notification action for immediate user control.
+  - Live reactive StateFlow singletons (`liveServiceState`, `liveRmsEnergy`, `isSpeechActive`).
+  - Decoupled `ServiceController` abstraction enabling unit-testable service triggering.
+- **Home Dashboard Updates**:
+  - Real-time audio level progress bar and "SPEECH" detection indicator badge.
+  - Expanded `ListeningState` domain covering `STANDBY`, `STARTING`, `ACTIVE_LISTENING`, `SPEECH_DETECTED`, `MICROPHONE_UNAVAILABLE`, `INTERRUPTED`, `STOPPED`, and `ERROR`.
+  - Dynamic `RECORD_AUDIO` permission request launcher wired to toggle switch.
+- **Unit Tests**:
+  - RMS mathematical verification on silence and pure sine waves.
+  - VAD thresholding, min speech duration, silence hangover, and reset lifecycle tests.
+  - Expanded earphone tests covering wired headphones and USB headsets.
+
+---
+
+## [0.1.1] - Milestone 1.1: Architecture Audit & Hilt Migration
+
+### Added
+- **Dagger Hilt Dependency Injection**:
+  - Replaced manual `AppContainer` with Dagger Hilt `2.55`.
+  - Configured `@HiltAndroidApp`, `@AndroidEntryPoint`, and `@HiltViewModel`.
+  - Isolated test doubles from production DI modules.
+  - Honest hardware state reporting in initial production modules.
+
+---
+
 ## [0.1.0] - Milestone 1: Project Foundation & Architecture
 
 ### Added

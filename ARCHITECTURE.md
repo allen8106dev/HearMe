@@ -159,8 +159,47 @@ The application utilizes **Dagger Hilt** (`2.55`) for dependency injection acros
 | **`targetSdk`** | `36` | Android 16 (API 36) |
 | **`minSdk`** | `29` | Android 10 (API 29) (Required for modern audio/BT routing) |
 | **Android Gradle Plugin** | `9.3.3` | AGP 9.3 with built-in Kotlin support |
-| **Kotlin Version** | `2.2.10` | Built-in compiler |
+| **Kotlin Version** | `2.2.10` | Built-in compiler (Language & API target 2.1 for Hilt metadata alignment) |
 | **KSP Version** | `2.2.10-2.0.2` | Matching Kotlin 2.2.10 symbol processing |
 | **Hilt Version** | `2.55` | Dagger Hilt with KSP and `android.newDsl=false` compatibility |
 | **Compose BOM** | `2026.02.01` | Material 3 & Navigation Compose `2.8.8` |
 | **Room Database** | `2.7.2` | KSP code generation |
+
+---
+
+## 7. Milestone 2: Hardware-Integrated Audio & Detection Engine
+
+### Real Audio Capture (`RealAudioCaptureManager`)
+- Implements `AudioCaptureManager` using Android `AudioRecord`.
+- **Target audio format**: Mono, 16 kHz sample rate, 16-bit PCM (`ENCODING_PCM_16BIT`).
+- **Audio source**: `MediaRecorder.AudioSource.VOICE_RECOGNITION` for hardware-tuned speech pre-processing.
+- **Buffer size**: 40 ms frames (640 samples / 1280 bytes per chunk) read asynchronously on `Dispatchers.IO`.
+- **Robustness**: Validates `RECORD_AUDIO` permission before capture, gracefully recovers from audio record initialization errors, and releases native `AudioRecord` resources cleanly on cancellation or service stoppage.
+- **Privacy**: Raw PCM buffers remain strictly in transient heap memory during frame evaluation and are never written to persistent disk storage.
+
+### Real Earphone Detection (`RealEarphoneConnectionMonitor`)
+- Implements `EarphoneConnectionMonitor` and `AudioDeviceStateProvider` using Android `AudioManager` and `AudioDeviceCallback`.
+- Monitors hardware device connections and disconnections in real time across:
+  - Bluetooth A2DP audio sinks (`TYPE_BLUETOOTH_A2DP`)
+  - Bluetooth SCO headset sinks (`TYPE_BLUETOOTH_SCO`)
+  - 3.5 mm wired headsets (`TYPE_WIRED_HEADSET`)
+  - 3.5 mm wired headphones (`TYPE_WIRED_HEADPHONES`)
+  - USB audio headsets and peripherals (`TYPE_USB_HEADSET`, `TYPE_USB_DEVICE`)
+- Safely accesses Bluetooth device names only when `BLUETOOTH_CONNECT` permission is granted (Android 12+), gracefully falling back to descriptive device type labels otherwise.
+
+### Voice Activity Detection (`EnergyVadDetector`)
+- Implements `SpeechActivityDetector` with zero per-frame heap allocations.
+- **Energy Metric**: Root Mean Square (RMS) amplitude calculated from 16-bit little-endian PCM samples, normalized to `[0.0, 1.0]`.
+- **Adaptive Noise Tracking**: Continuously adapts background ambient noise level using exponential moving average (`alpha = 0.05`), strictly during verified quiet intervals.
+- **Configurable Sensitivity**: Maps user sensitivity (`0.0` to `1.0`) to a dynamic Signal-to-Noise Ratio (SNR) threshold multiplier (`1.8x` to `5.0x`).
+- **Temporal Stability**:
+  - Minimum speech duration requirement (`minSpeechDurationMs = 120ms` default, configurable) to ignore short non-vocal transients/clicks.
+  - Silence hangover delay (`silenceTimeoutMs = 300ms` default) preventing flutter/choppiness between words during continuous speech.
+
+### Foreground Listening Service (`SmartListeningService`)
+- Hosts continuous background microphone capture under Android 14+ foreground service policies.
+- Type: `android:foregroundServiceType="microphone"`.
+- Features an ongoing, non-dismissible notification with a one-tap **Stop Listening** action.
+- Exposes reactive, single-source-of-truth StateFlows (`liveServiceState`, `liveRmsEnergy`, `isSpeechActive`) consumed by the UI.
+- Abstraction: `ServiceController` interface decouples the ViewModel from the Android `Context` framework class, enabling unit testability without mock frameworks.
+

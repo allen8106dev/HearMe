@@ -63,5 +63,6 @@ data class AudioSegment(
 data class SpeechActivity(
     val hasSpeech: Boolean,
     val confidence: Float,
-    val energyRms: Float
+    val energyRms: Float,
+    val timestampMs: Long = System.currentTimeMillis()
 )

@@ -23,8 +23,12 @@ class FakeAudioCaptureManager : AudioCaptureManager {
     override val audioStream: Flow<AudioChunk> = _audioStream.asSharedFlow()
 
     var shouldFail: Boolean = false
+    var failWithSecurityException: Boolean = false
 
     override suspend fun startCapture(config: AudioConfig): HearMeResult<Unit> {
+        if (failWithSecurityException) {
+            return HearMeResult.Error(SecurityException("RECORD_AUDIO permission not granted (fake)"))
+        }
         if (shouldFail) {
             return HearMeResult.Error(IllegalStateException("Failed to initialize audio capture in fake"))
         }

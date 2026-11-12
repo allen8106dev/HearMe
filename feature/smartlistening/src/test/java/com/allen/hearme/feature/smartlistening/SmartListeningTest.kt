@@ -2,8 +2,6 @@ package com.allen.hearme.feature.smartlistening
 
 import com.allen.hearme.core.audio.fake.FakeAudioCaptureManager
 import com.allen.hearme.core.bluetooth.fake.FakeEarphoneConnectionMonitor
-import com.allen.hearme.core.bluetooth.model.AudioDeviceInfo
-import com.allen.hearme.core.bluetooth.model.AudioDeviceType
 import com.allen.hearme.core.media.fake.FakeMediaPlaybackController
 import com.allen.hearme.feature.smartlistening.model.DecisionContext
 import com.allen.hearme.feature.smartlistening.model.ListeningState
@@ -52,7 +50,7 @@ class SmartListeningTest {
     }
 
     @Test
-    fun orchestratorTransitionsStateCorrectly() = runTest {
+    fun orchestratorStartsInStandbyState() = runTest {
         val audioManager = FakeAudioCaptureManager()
         val earphoneMonitor = FakeEarphoneConnectionMonitor()
         val mediaController = FakeMediaPlaybackController()
@@ -65,15 +63,80 @@ class SmartListeningTest {
             decisionEngine
         )
 
-        assertEquals(ListeningState.IDLE, orchestrator.currentState.value)
+        assertEquals(ListeningState.STANDBY, orchestrator.currentState.value)
         assertFalse(orchestrator.isListening)
+    }
+
+    @Test
+    fun orchestratorTransitionsToActiveOnStart() = runTest {
+        val audioManager = FakeAudioCaptureManager()
+        val earphoneMonitor = FakeEarphoneConnectionMonitor()
+        val mediaController = FakeMediaPlaybackController()
+        val decisionEngine = DefaultListeningDecisionEngine()
+
+        val orchestrator = DefaultListeningOrchestrator(
+            audioManager,
+            earphoneMonitor,
+            mediaController,
+            decisionEngine
+        )
 
         orchestrator.startListening(ListeningTrigger.USER_MANUAL)
         assertEquals(ListeningState.ACTIVE_LISTENING, orchestrator.currentState.value)
         assertTrue(orchestrator.isListening)
+    }
 
+    @Test
+    fun orchestratorTransitionsToStandbyOnStop() = runTest {
+        val audioManager = FakeAudioCaptureManager()
+        val earphoneMonitor = FakeEarphoneConnectionMonitor()
+        val mediaController = FakeMediaPlaybackController()
+        val decisionEngine = DefaultListeningDecisionEngine()
+
+        val orchestrator = DefaultListeningOrchestrator(
+            audioManager,
+            earphoneMonitor,
+            mediaController,
+            decisionEngine
+        )
+
+        orchestrator.startListening(ListeningTrigger.USER_MANUAL)
         orchestrator.stopListening()
-        assertEquals(ListeningState.IDLE, orchestrator.currentState.value)
+        assertEquals(ListeningState.STANDBY, orchestrator.currentState.value)
         assertFalse(orchestrator.isListening)
+    }
+
+    @Test
+    fun orchestratorTransitionsToMicUnavailableOnPermissionError() = runTest {
+        val audioManager = FakeAudioCaptureManager()
+        audioManager.failWithSecurityException = true
+        val earphoneMonitor = FakeEarphoneConnectionMonitor()
+        val mediaController = FakeMediaPlaybackController()
+        val decisionEngine = DefaultListeningDecisionEngine()
+
+        val orchestrator = DefaultListeningOrchestrator(
+            audioManager,
+            earphoneMonitor,
+            mediaController,
+            decisionEngine
+        )
+
+        orchestrator.startListening(ListeningTrigger.USER_MANUAL)
+        assertEquals(ListeningState.MICROPHONE_UNAVAILABLE, orchestrator.currentState.value)
+        assertFalse(orchestrator.isListening)
+    }
+
+    @Test
+    fun fakeOrchestratorTransitionsCorrectly() = runTest {
+        val fakeOrchestrator = FakeListeningOrchestrator()
+        assertEquals(ListeningState.STANDBY, fakeOrchestrator.currentState.value)
+
+        fakeOrchestrator.startListening(ListeningTrigger.USER_MANUAL)
+        assertEquals(ListeningState.ACTIVE_LISTENING, fakeOrchestrator.currentState.value)
+        assertTrue(fakeOrchestrator.isListening)
+
+        fakeOrchestrator.stopListening()
+        assertEquals(ListeningState.STANDBY, fakeOrchestrator.currentState.value)
+        assertFalse(fakeOrchestrator.isListening)
     }
 }

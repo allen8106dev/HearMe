@@ -18,6 +18,7 @@ import com.allen.hearme.ui.HearMeViewModel
 @Composable
 fun AppNavHost(
     viewModel: HearMeViewModel,
+    onRequestMicPermission: () -> Unit = {},
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController()
 ) {
@@ -48,10 +49,18 @@ fun AppNavHost(
         composable(Screen.Home.route) {
             HomeScreen(
                 isSmartListeningOn = uiState.isSmartListeningOn,
-                onToggleSmartListening = { enable -> viewModel.toggleSmartListening(enable) },
+                onToggleSmartListening = { enable ->
+                    if (enable) {
+                        onRequestMicPermission()
+                    } else {
+                        viewModel.toggleSmartListening(false)
+                    }
+                },
                 listeningStatusText = uiState.listeningStatusText,
                 earphoneName = uiState.earphoneName,
                 isEarphoneConnected = uiState.isEarphoneConnected,
+                rmsEnergy = uiState.rmsEnergy,
+                isSpeechActive = uiState.isSpeechActive,
                 onNavigateToTraining = { navController.navigate(Screen.Training.route) },
                 onNavigateToHistory = { navController.navigate(Screen.History.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) }

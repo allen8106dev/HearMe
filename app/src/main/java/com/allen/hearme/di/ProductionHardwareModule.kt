@@ -1,16 +1,17 @@
 package com.allen.hearme.di
 
+import android.content.Context
 import com.allen.hearme.core.audio.AudioCaptureManager
 import com.allen.hearme.core.audio.AudioSegmentProcessor
+import com.allen.hearme.core.audio.EnergyVadDetector
+import com.allen.hearme.core.audio.RealAudioCaptureManager
 import com.allen.hearme.core.audio.SpeechActivityDetector
-import com.allen.hearme.core.audio.model.AudioChunk
-import com.allen.hearme.core.audio.model.AudioConfig
 import com.allen.hearme.core.audio.model.AudioSegment
-import com.allen.hearme.core.audio.model.SpeechActivity
 import com.allen.hearme.core.bluetooth.AudioDeviceStateProvider
 import com.allen.hearme.core.bluetooth.EarphoneConnectionMonitor
-import com.allen.hearme.core.bluetooth.model.AudioDeviceInfo
-import com.allen.hearme.core.bluetooth.model.EarphoneConnectionState
+import com.allen.hearme.core.bluetooth.RealEarphoneConnectionMonitor
+import com.allen.hearme.core.common.dispatcher.DispatcherProvider
+import com.allen.hearme.core.common.dispatcher.StandardDispatcherProvider
 import com.allen.hearme.core.common.result.HearMeResult
 import com.allen.hearme.core.media.AudioFocusManager
 import com.allen.hearme.core.media.MediaPlaybackController
@@ -32,6 +33,7 @@ import com.allen.hearme.core.ml.model.TranscriptionResult
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,67 +42,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import javax.inject.Singleton
 
-/**
- * Production Hardware & Service Bindings.
- *
- * In Milestone 1.1: Real AudioRecord, Bluetooth broadcast receivers, media session controllers,
- * and ML models are scheduled for subsequent milestones.
- *
- * For honest status reporting and production safety:
- * - AudioCaptureManager starts uninitialized and inactive.
- * - EarphoneConnectionMonitor honestly reflects [EarphoneConnectionState.Disconnected].
- * - SpeechRecognizer and SpeechClassifier return explicit uninitialized errors without fake responses.
- * - TrainingManager returns 0 trained samples without claiming completion.
- */
-
-private class StandaloneAudioCaptureManager : AudioCaptureManager {
-    private val _isCapturing = MutableStateFlow(false)
-    override val isCapturing: StateFlow<Boolean> = _isCapturing.asStateFlow()
-    override val audioStream: Flow<AudioChunk> = emptyFlow()
-
-    override suspend fun startCapture(config: AudioConfig): HearMeResult<Unit> {
-        return HearMeResult.Error(
-            IllegalStateException("Audio capture service is not yet initialized for this milestone.")
-        )
-    }
-
-    override suspend fun stopCapture() {
-        _isCapturing.value = false
-    }
-}
-
-private class StandaloneSpeechActivityDetector : SpeechActivityDetector {
-    override suspend fun detectActivity(chunk: AudioChunk): SpeechActivity {
-        return SpeechActivity(hasSpeech = false, confidence = 0.0f, energyRms = 0.0f)
-    }
-
-    override fun reset() {}
-}
+// ─── Standalone stubs (Milestone 2: not yet implemented) ─────────────────────
 
 private class StandaloneAudioSegmentProcessor : AudioSegmentProcessor {
     override suspend fun processSegment(segment: AudioSegment): HearMeResult<AudioSegment> {
         return HearMeResult.Success(segment)
     }
-}
-
-private class StandaloneEarphoneConnectionMonitor : EarphoneConnectionMonitor {
-    private val _connectionState = MutableStateFlow<EarphoneConnectionState>(EarphoneConnectionState.Disconnected)
-    override val connectionState: StateFlow<EarphoneConnectionState> = _connectionState.asStateFlow()
-
-    private val _connectedDevice = MutableStateFlow<AudioDeviceInfo?>(null)
-    override val connectedDevice: StateFlow<AudioDeviceInfo?> = _connectedDevice.asStateFlow()
-
-    override fun isEarphoneConnected(): Boolean = false
-}
-
-private class StandaloneAudioDeviceStateProvider : AudioDeviceStateProvider {
-    private val _availableDevices = MutableStateFlow<List<AudioDeviceInfo>>(emptyList())
-    override val availableDevices: StateFlow<List<AudioDeviceInfo>> = _availableDevices.asStateFlow()
-
-    private val _activeOutputDevice = MutableStateFlow<AudioDeviceInfo?>(null)
-    override val activeOutputDevice: StateFlow<AudioDeviceInfo?> = _activeOutputDevice.asStateFlow()
-
-    override fun isHeadsetPluggedIn(): Boolean = false
 }
 
 private class StandaloneMediaPlaybackController : MediaPlaybackController {
@@ -112,7 +59,7 @@ private class StandaloneMediaPlaybackController : MediaPlaybackController {
 }
 
 private class StandaloneAudioFocusManager : AudioFocusManager {
-    private val _currentFocusState = MutableStateFlow<AudioFocusState>(AudioFocusState.NO_FOCUS)
+    private val _currentFocusState = MutableStateFlow(AudioFocusState.NO_FOCUS)
     override val currentFocusState: StateFlow<AudioFocusState> = _currentFocusState.asStateFlow()
 
     override fun hasFocus(): Boolean = false
@@ -199,29 +146,66 @@ private class StandalonePersonalisationEngine : PersonalisationEngine {
     override suspend fun updateThreshold(newOffset: Float) {}
 }
 
+// ─── Production DI Module ─────────────────────────────────────────────────────
+
 @Module
 @InstallIn(SingletonComponent::class)
 object ProductionHardwareModule {
 
-    @Provides
-    @Singleton
-    fun provideAudioCaptureManager(): AudioCaptureManager = StandaloneAudioCaptureManager()
+    // ── Dispatcher ──────────────────────────────────────────────────────────
 
     @Provides
     @Singleton
-    fun provideSpeechActivityDetector(): SpeechActivityDetector = StandaloneSpeechActivityDetector()
+    fun provideDispatcherProvider(): DispatcherProvider = StandardDispatcherProvider()
+
+    // ── REAL: Audio Capture ─────────────────────────────────────────────────
+
+    @Provides
+    @Singleton
+    fun provideAudioCaptureManager(
+        @ApplicationContext context: Context,
+        dispatchers: DispatcherProvider
+    ): AudioCaptureManager = RealAudioCaptureManager(context, dispatchers)
+
+    // ── REAL: VAD ───────────────────────────────────────────────────────────
+
+    @Provides
+    @Singleton
+    fun provideSpeechActivityDetector(): SpeechActivityDetector = EnergyVadDetector()
+
+    // ── REAL: Earphone & Device State (single instance for both interfaces) ─
+
+    @Provides
+    @Singleton
+    fun provideRealEarphoneConnectionMonitor(
+        @ApplicationContext context: Context
+    ): RealEarphoneConnectionMonitor = RealEarphoneConnectionMonitor(context)
+
+    @Provides
+    @Singleton
+    fun provideEarphoneConnectionMonitor(
+        monitor: RealEarphoneConnectionMonitor
+    ): EarphoneConnectionMonitor = monitor
+
+    @Provides
+    @Singleton
+    fun provideAudioDeviceStateProvider(
+        monitor: RealEarphoneConnectionMonitor
+    ): AudioDeviceStateProvider = monitor
+
+    // ── Service Controller ──────────────────────────────────────────────────
+
+    @Provides
+    @Singleton
+    fun provideServiceController(
+        @ApplicationContext context: Context
+    ): com.allen.hearme.service.ServiceController = com.allen.hearme.service.RealServiceController(context)
+
+    // ── Stubs (Milestone 3+) ─────────────────────────────────────────────────
 
     @Provides
     @Singleton
     fun provideAudioSegmentProcessor(): AudioSegmentProcessor = StandaloneAudioSegmentProcessor()
-
-    @Provides
-    @Singleton
-    fun provideEarphoneConnectionMonitor(): EarphoneConnectionMonitor = StandaloneEarphoneConnectionMonitor()
-
-    @Provides
-    @Singleton
-    fun provideAudioDeviceStateProvider(): AudioDeviceStateProvider = StandaloneAudioDeviceStateProvider()
 
     @Provides
     @Singleton
