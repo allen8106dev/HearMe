@@ -138,12 +138,17 @@ class RealAudioCaptureManager(
         channelCount: Int,
         readBufferSize: Int
     ) = withContext(dispatchers.io) {
-        // Read buffer chunk sized to approximately 40ms to 64ms for low-latency VAD processing
         val chunkSizeBytes = 1280 // 1280 bytes = 640 16-bit samples = 40ms @ 16kHz mono
         val buffer = ByteArray(chunkSizeBytes)
 
         while (isActive && _isCapturing.value) {
-            val bytesRead = record.read(buffer, 0, buffer.size)
+            val bytesRead = try {
+                record.read(buffer, 0, buffer.size)
+            } catch (e: Exception) {
+                logger.w(TAG, "Exception during AudioRecord.read", e)
+                -1
+            }
+
             if (bytesRead > 0) {
                 val dataCopy = buffer.copyOf(bytesRead)
                 val chunk = AudioChunk(
@@ -169,8 +174,12 @@ class RealAudioCaptureManager(
             return@withContext
         }
         _isCapturing.value = false
-        captureJob?.cancel()
+        val job = captureJob
         captureJob = null
+        job?.cancel()
+        try {
+            job?.join()
+        } catch (_: Exception) {}
         releaseInternal()
         logger.i(TAG, "Audio recording stopped and hardware resources released")
     }

@@ -19,7 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.BluetoothSearching
+import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
@@ -32,6 +32,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -53,10 +54,13 @@ import com.allen.hearme.core.database.preferences.UserPreferences
 @Composable
 fun SettingsScreen(
     preferences: UserPreferences,
+    hasNotificationListenerAccess: Boolean = false,
     onAutoActivationChange: (Boolean) -> Unit,
     onSensitivityChange: (DetectionSensitivity) -> Unit,
     onBehaviorChange: (MusicInterruptionBehavior) -> Unit,
     onTrainingRemindersChange: (Boolean) -> Unit,
+    onAutoRestorePlaybackChange: (Boolean) -> Unit = {},
+    onGrantNotificationAccess: () -> Unit = {},
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -183,6 +187,36 @@ fun SettingsScreen(
                             )
                         }
                     }
+
+                    // Auto-restore playback toggle (only relevant when not DO_NOT_CONTROL)
+                    if (preferences.preferredBehavior != MusicInterruptionBehavior.DO_NOT_CONTROL) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Auto-Restore Playback",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Automatically resume music after the interruption ends",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Switch(
+                                checked = preferences.autoRestorePlayback,
+                                onCheckedChange = onAutoRestorePlaybackChange
+                            )
+                        }
+                    }
                 }
             }
 
@@ -213,7 +247,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.BluetoothSearching,
+                            imageVector = Icons.AutoMirrored.Filled.BluetoothSearching,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
@@ -282,6 +316,79 @@ fun SettingsScreen(
                         checked = preferences.trainingRemindersEnabled,
                         onCheckedChange = onTrainingRemindersChange
                     )
+                }
+            }
+
+            Text(
+                text = "Media Access",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            // Notification Listener Status
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = null,
+                            tint = if (hasNotificationListenerAccess)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Notification Listener Access",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (hasNotificationListenerAccess)
+                                        androidx.compose.ui.graphics.Color(0xFFE8F5E9)
+                                    else
+                                        androidx.compose.ui.graphics.Color(0xFFECEFF1)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (hasNotificationListenerAccess) "GRANTED" else "NOT GRANTED",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (hasNotificationListenerAccess)
+                                    androidx.compose.ui.graphics.Color(0xFF2E7D32)
+                                else
+                                    androidx.compose.ui.graphics.Color(0xFF546E7A)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Required to detect and control active media sessions (pause, duck). Notification content is never read or stored.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (!hasNotificationListenerAccess) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = onGrantNotificationAccess,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Open Notification Access Settings")
+                        }
+                    }
                 }
             }
 

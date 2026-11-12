@@ -28,10 +28,22 @@
 
 ---
 
-## Milestone 3: Speech Activity Detection & Intent Modeling (Next)
-- Local Voice Activity Detection (VAD) using ONNX Runtime / TensorFlow Lite (Silero VAD model).
+## Milestone 3: Intelligent Media Control & Playback Interruption Engine (Completed)
+- Real `MediaPlaybackController` backed by `MediaSessionManager` and `MediaController` transport controls.
+- `HearMeNotificationListenerService` providing safe, dedicated Android access to active media sessions.
+- Real `AudioFocusManager` providing transient audio focus ducking (`AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`) and call-safety checks.
+- Safeguarded `PlaybackRestorationEngine` using `InterruptionRecord` to ensure music only resumes if HearMe paused it (never overriding user manual pause).
+- Contextual Notification Listener permission request card and deep-link to Android settings.
+- Real-time "Now Playing" dashboard card displaying live title, artist, and playback state.
+- Developer test action to simulate media interruptions on live third-party media apps.
+- DataStore settings for interruption behavior (`PAUSE_MUSIC`, `LOWER_VOLUME`, `DO_NOT_CONTROL`), auto-restore playback, and restoration delay.
+
+---
+
+## Milestone 4: Speech Recognition & Intent Classification (Next)
+- Local speech recognition model operating completely offline.
 - Directed speech classifier to differentiate ambient babble from nearby speakers directly addressing the user.
-- Keyword / User-name recognition model operating completely offline.
+- Keyword / User-name recognition model.
 - Decision engine tuning for low false-positive rate.
 
 ---

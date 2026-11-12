@@ -5,6 +5,8 @@ import com.allen.hearme.core.media.AudioFocusManager
 import com.allen.hearme.core.media.MediaPlaybackController
 import com.allen.hearme.core.media.model.AudioFocusRequestConfig
 import com.allen.hearme.core.media.model.AudioFocusState
+import com.allen.hearme.core.media.model.InterruptionRecord
+import com.allen.hearme.core.media.model.MediaTrackInfo
 import com.allen.hearme.core.media.model.PlaybackAction
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +18,14 @@ class FakeMediaPlaybackController(
 
     val actionHistory = mutableListOf<PlaybackAction>()
     var currentVolumeRatio: Float = 1.0f
+
+    private val _activeMediaTrack = MutableStateFlow<MediaTrackInfo?>(null)
+    override val activeMediaTrack: StateFlow<MediaTrackInfo?> = _activeMediaTrack.asStateFlow()
+
+    private val _hasNlsAccess = MutableStateFlow(false)
+    override val hasNotificationListenerAccess: StateFlow<Boolean> = _hasNlsAccess.asStateFlow()
+
+    private var activeInterruption: InterruptionRecord? = null
 
     override suspend fun pauseMedia(): HearMeResult<Unit> {
         actionHistory.add(PlaybackAction.PAUSE)
@@ -41,7 +51,28 @@ class FakeMediaPlaybackController(
         return HearMeResult.Success(Unit)
     }
 
+    override suspend fun restorePlayback(): HearMeResult<Unit> {
+        val record = activeInterruption ?: return HearMeResult.Success(Unit)
+        if (record.wasPlayingBeforeInterruption) {
+            actionHistory.add(PlaybackAction.RESUME)
+            isPlaying = true
+        }
+        activeInterruption = null
+        return HearMeResult.Success(Unit)
+    }
+
+    override fun cancelInterruption() {
+        activeInterruption = null
+    }
+
+    override fun getActiveInterruption(): InterruptionRecord? = activeInterruption
+
     override fun isMediaPlaying(): Boolean = isPlaying
+
+    // Test helpers
+    fun setNlsAccess(granted: Boolean) { _hasNlsAccess.value = granted }
+    fun setActiveTrack(track: MediaTrackInfo?) { _activeMediaTrack.value = track }
+    fun setActiveInterruption(record: InterruptionRecord?) { activeInterruption = record }
 }
 
 class FakeAudioFocusManager : AudioFocusManager {

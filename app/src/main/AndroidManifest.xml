@@ -15,6 +15,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Notification Listener Service (for MediaSessionManager.getActiveSessions) -->
+    <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+        tools:ignore="ProtectedPermissions" />
+
     <application
         android:name=".HearMeApplication"
         android:allowBackup="true"
@@ -42,6 +46,19 @@
             android:name=".service.SmartListeningService"
             android:foregroundServiceType="microphone"
             android:exported="false" />
+
+        <!-- Notification Listener Service — grants access to MediaSessionManager.getActiveSessions().
+             The user must explicitly grant Notification Access in Android Settings.
+             This service does NOT read notification content; it exists solely for media session discovery. -->
+        <service
+            android:name=".service.HearMeNotificationListenerService"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

@@ -20,13 +20,12 @@ import com.allen.hearme.R
 import com.allen.hearme.core.audio.AudioCaptureManager
 import com.allen.hearme.core.audio.SpeechActivityDetector
 import com.allen.hearme.core.common.dispatcher.DispatcherProvider
-import com.allen.hearme.core.common.logging.HearMeLogger
+import com.allen.hearme.core.media.MediaPlaybackController
 import com.allen.hearme.feature.smartlistening.ListeningOrchestrator
 import com.allen.hearme.feature.smartlistening.model.ListeningState
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,6 +53,9 @@ class SmartListeningService : Service() {
     lateinit var orchestrator: ListeningOrchestrator
 
     @Inject
+    lateinit var mediaPlaybackController: MediaPlaybackController
+
+    @Inject
     lateinit var dispatchers: DispatcherProvider
 
     private var serviceJob = Job()
@@ -73,33 +75,45 @@ class SmartListeningService : Service() {
             return START_NOT_STICKY
         }
 
-        // Validate RECORD_AUDIO permission before starting foreground microphone capture
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        val hasMicPermission = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasMicPermission) {
             _liveServiceState.value = ListeningState.MICROPHONE_UNAVAILABLE
-            stopSelf()
+            // Satisfy Android foreground service contract before stopping
+            startForegroundNotification(isPermissionGranted = false)
+            stopListeningService()
             return START_NOT_STICKY
         }
 
-        startForegroundNotification()
+        startForegroundNotification(isPermissionGranted = true)
         startAudioProcessingLoop()
 
         return START_STICKY
     }
 
-    private fun startForegroundNotification() {
+    private fun startForegroundNotification(isPermissionGranted: Boolean) {
         val notification = buildNotification(isSpeechDetected = false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val foregroundServiceType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val foregroundServiceType = if (isPermissionGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             } else {
                 0
             }
-            startForeground(NOTIFICATION_ID, notification, foregroundServiceType)
+            try {
+                startForeground(NOTIFICATION_ID, notification, foregroundServiceType)
+            } catch (_: Exception) {
+                startForeground(NOTIFICATION_ID, notification)
+            }
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
-        _isServiceRunning.value = true
-        _liveServiceState.value = ListeningState.ACTIVE_LISTENING
+        if (isPermissionGranted) {
+            _isServiceRunning.value = true
+            _liveServiceState.value = ListeningState.ACTIVE_LISTENING
+        }
     }
 
     private fun startAudioProcessingLoop() {
@@ -109,7 +123,7 @@ class SmartListeningService : Service() {
             val captureResult = audioCaptureManager.startCapture()
             if (!captureResult.isSuccess) {
                 _liveServiceState.value = ListeningState.ERROR
-                stopSelf()
+                stopListeningService()
                 return@launch
             }
 
@@ -124,11 +138,17 @@ class SmartListeningService : Service() {
                     if (_liveServiceState.value != ListeningState.SPEECH_DETECTED) {
                         _liveServiceState.value = ListeningState.SPEECH_DETECTED
                         updateNotification(isSpeechDetected = true)
+                        serviceScope.launch {
+                            mediaPlaybackController.pauseMedia()
+                        }
                     }
                 } else {
                     if (_liveServiceState.value == ListeningState.SPEECH_DETECTED) {
                         _liveServiceState.value = ListeningState.ACTIVE_LISTENING
                         updateNotification(isSpeechDetected = false)
+                        serviceScope.launch {
+                            mediaPlaybackController.restorePlayback()
+                        }
                     }
                 }
             }
@@ -139,13 +159,19 @@ class SmartListeningService : Service() {
         processingJob?.cancel()
         processingJob = null
         serviceScope.launch {
+            mediaPlaybackController.restorePlayback()
             audioCaptureManager.stopCapture()
             speechDetector.reset()
             _isServiceRunning.value = false
-            _liveServiceState.value = ListeningState.STOPPED
+            _liveServiceState.value = ListeningState.STANDBY
             _isSpeechActive.value = false
             _liveRmsEnergy.value = 0.0f
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
             stopSelf()
         }
     }

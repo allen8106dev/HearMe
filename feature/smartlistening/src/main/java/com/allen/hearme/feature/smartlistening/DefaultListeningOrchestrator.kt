@@ -41,6 +41,7 @@ class DefaultListeningOrchestrator(
 
     override suspend fun stopListening() {
         audioCaptureManager.stopCapture()
+        mediaPlaybackController.cancelInterruption()
         _currentState.value = ListeningState.STANDBY
     }
 }

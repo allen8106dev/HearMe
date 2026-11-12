@@ -104,7 +104,11 @@ class RealEarphoneConnectionMonitor(
             val rawName = if (deviceType in listOf(AudioDeviceType.BLUETOOTH_A2DP, AudioDeviceType.BLUETOOTH_HEADSET) && !hasBtConnectPermission) {
                 "Bluetooth Audio Device"
             } else {
-                val name = device.productName?.toString()
+                val name = try {
+                    device.productName?.toString()
+                } catch (e: SecurityException) {
+                    null
+                }
                 if (name.isNullOrBlank()) defaultDeviceName(deviceType) else name
             }
 

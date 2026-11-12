@@ -26,10 +26,12 @@ HearMe provides an intelligent audio-awareness layer between the user and their 
 | **Audio Processing** | Speech Activity Detection | On-device Voice Activity Detection (VAD) via RMS energy and adaptive noise tracking | **Implemented (EnergyVadDetector)** | M2 |
 | **Bluetooth & Routing** | Earphone Auto-Detection | AudioDeviceCallback hardware detection (BT A2DP, BT SCO, Wired, USB) | **Implemented (RealEarphoneConnectionMonitor)** | M2 |
 | **Service & Lifecycle** | Foreground Service | Foreground microphone service with persistent notification and stop action | **Implemented (SmartListeningService)** | M2 |
-| **Media Control** | Media Ducking / Pausing | Android MediaSession / AudioFocus controller to pause and lower music | Contract Established (Stubs) | M3 |
-| **Intelligence** | Directed Speech Filter | Differentiating acoustic direction & proximity (speaker addressing listener) | Contract Established (Fake) | M3 |
-| **Intelligence** | Keyword & Name Spotting | Local Wake-word / Name recognition without cloud connection | Contract Established (Fake) | M3 |
-| **Personalization** | Voice Profiling | Training user's voice model without earphones to prevent self-interruption | Architectural Placeholder | M4 |
+| **Media Control** | Media Ducking / Pausing | Android MediaSession / AudioFocus controller to pause and lower music | **Implemented (Real MediaSessionManager & AudioFocus)** | M3 |
+| **Media Control** | Playback Restoration Engine | State verification ensuring music only resumes if HearMe paused it | **Implemented (InterruptionRecord Safeguards)** | M3 |
+| **Media Control** | Notification Listener Access | Contextual permission UI and deep-link to special app access settings | **Implemented (HearMeNotificationListenerService)** | M3 |
+| **Intelligence** | Directed Speech Filter | Differentiating acoustic direction & proximity (speaker addressing listener) | Contract Established (Fake) | M4 |
+| **Intelligence** | Keyword & Name Spotting | Local Wake-word / Name recognition without cloud connection | Contract Established (Fake) | M4 |
+| **Personalization** | Voice Profiling | Training user's voice model without earphones to prevent self-interruption | Architectural Placeholder | M5 |
 | **Personalization** | YES / NO Feedback Loop | User feedback mechanism to fine-tune sensitivity thresholds | Architectural Placeholder | M5 |
 
 

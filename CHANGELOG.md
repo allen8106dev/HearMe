@@ -2,6 +2,39 @@
 
 All notable changes to the HearMe Android application are documented in this file.
 
+## [0.3.0] - Milestone 3: Intelligent Media Control & Playback Interruption Engine
+
+### Added
+- **Real Android Media Session Integration (`RealMediaPlaybackController`)**:
+  - Implemented `MediaPlaybackController` backed by Android's `MediaSessionManager` and `MediaController`.
+  - Exposes reactive `activeMediaTrack: StateFlow<MediaTrackInfo?>` with track title, artist, album, package name, playback state, and available transport actions.
+  - Automatically observes active sessions using `MediaSessionManager.OnActiveSessionsChangedListener`.
+- **Notification Listener Access Integration (`HearMeNotificationListenerService`)**:
+  - Registered `NotificationListenerService` to grant `BIND_NOTIFICATION_LISTENER_SERVICE` privilege needed for `MediaSessionManager.getActiveSessions()`.
+  - Service strictly ignores notification content; its sole purpose is discovering and interacting with active media sessions.
+  - Contextual explanation card in UI when permission is ungranted, with direct deep-link to Android's Notification Access Settings.
+  - Graceful degradation: falls back to system Audio Focus ducking if Notification Listener access is denied.
+- **Intelligent Audio Focus & Ducking (`RealAudioFocusManager`)**:
+  - Backed by Android `AudioManager` and `AudioFocusRequest`.
+  - Requests `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` when ducking is preferred, prompting compliant media apps (Spotify, YouTube Music, etc.) to duck their volume automatically.
+  - Safety check: silences interruptions during active phone calls (`MODE_IN_CALL`, `MODE_IN_COMMUNICATION`, `MODE_RINGTONE`).
+- **Playback Restoration Safeguard Engine**:
+  - Implemented `InterruptionRecord` capturing session ID, previous state, position, and action taken.
+  - Strict restoration guarantees: NEVER automatically resumes music that the user had manually paused or changed.
+  - Configurable restoration delay (`restorationDelayMs`) giving the user time to absorb the interruption.
+  - Setting to enable/disable automatic restoration (`autoRestorePlayback`).
+- **DataStore Preferences & Settings**:
+  - Added `DO_NOT_CONTROL` option to `MusicInterruptionBehavior`.
+  - Added `autoRestorePlayback: Boolean` (default `true`) and `restorationDelayMs: Long` (default `1500L`).
+  - Added Settings UI controls for auto-restore toggle and Notification Listener status.
+- **Home Dashboard & Developer Tools**:
+  - Real-time "Now Playing" card displaying current track, artist, and playing/paused badge.
+  - Developer action "Simulate Media Interruption" to test pause/duck and restore on real media apps without requiring speech.
+- **Unit Tests**:
+  - Comprehensive unit tests in `CoreMediaTest`, `CoreDatabaseTest`, and `HearMeViewModelTest` verifying media session detection, restoration safeguards, and UI reactive state.
+
+---
+
 ## [0.2.0] - Milestone 2: Real Audio Engine, Earphone Detection & Voice Activity Detection
 
 ### Added

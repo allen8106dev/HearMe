@@ -96,4 +96,12 @@ class FakeUserPreferencesRepository(
     override suspend fun setOnboardingCompleted(completed: Boolean) {
         _prefs.value = _prefs.value.copy(onboardingCompleted = completed)
     }
+
+    override suspend fun setAutoRestorePlayback(enabled: Boolean) {
+        _prefs.value = _prefs.value.copy(autoRestorePlayback = enabled)
+    }
+
+    override suspend fun setRestorationDelayMs(delayMs: Long) {
+        _prefs.value = _prefs.value.copy(restorationDelayMs = delayMs)
+    }
 }

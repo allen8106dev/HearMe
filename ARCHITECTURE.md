@@ -81,9 +81,12 @@ All critical subsystems are abstracted behind interfaces with zero concrete coup
 - `EarphoneConnectionMonitor`: Exposes `connectionState: StateFlow<EarphoneConnectionState>` and `connectedDevice: StateFlow<AudioDeviceInfo?>`.
 - `AudioDeviceStateProvider`: Queries system audio routing (Bluetooth A2DP, Headset, Wired) and verifies if private listening devices are plugged in.
 
-### Media Subsystem (`:core:media`)
-- `MediaPlaybackController`: Controls background music via media session / key injection (`pauseMedia()`, `resumeMedia()`, `lowerVolume()`, `restoreVolume()`).
-- `AudioFocusManager`: Manages audio focus requests and transient ducking transitions with system audio services.
+### Media Subsystem (`:core:media` & `:app`)
+- `MediaPlaybackController`: Controls background music via `MediaSessionManager` and `MediaController.transportControls` (`pauseMedia()`, `resumeMedia()`, `lowerVolume()`, `restoreVolume()`, `restorePlayback()`, `cancelInterruption()`).
+- `RealMediaPlaybackController`: Production implementation residing in `:app` that binds to `MediaSessionManager` using `HearMeNotificationListenerService`. Gracefully falls back to `AudioFocusManager` when Notification Listener access has not been granted.
+- `HearMeNotificationListenerService`: Android `NotificationListenerService` declared in `AndroidManifest.xml` with `BIND_NOTIFICATION_LISTENER_SERVICE`. Provides the component handle required by Android's `MediaSessionManager.getActiveSessions()` without reading or persisting user notification text.
+- `AudioFocusManager` & `RealAudioFocusManager`: Manages audio focus requests (`AUDIOFOCUS_GAIN_TRANSIENT` and `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`) with system `AudioManager`. Enforces safety checks to prevent ducking or pausing during active phone calls (`MODE_IN_CALL`, `MODE_IN_COMMUNICATION`, `MODE_RINGTONE`).
+- `InterruptionRecord`: Safeguard data structure capturing session ID, previous playback state, position, and action taken. Ensures HearMe NEVER resumes music that the user had manually paused or changed.
 
 ### Intelligence Subsystem (`:core:ml`)
 - `SpeechRecognizer`: Generates text transcripts from segmented speech.

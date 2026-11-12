@@ -13,10 +13,10 @@ import com.allen.hearme.core.bluetooth.RealEarphoneConnectionMonitor
 import com.allen.hearme.core.common.dispatcher.DispatcherProvider
 import com.allen.hearme.core.common.dispatcher.StandardDispatcherProvider
 import com.allen.hearme.core.common.result.HearMeResult
+import com.allen.hearme.core.database.preferences.UserPreferencesRepository
 import com.allen.hearme.core.media.AudioFocusManager
 import com.allen.hearme.core.media.MediaPlaybackController
-import com.allen.hearme.core.media.model.AudioFocusRequestConfig
-import com.allen.hearme.core.media.model.AudioFocusState
+import com.allen.hearme.core.media.RealAudioFocusManager
 import com.allen.hearme.core.ml.ConfidenceEvaluator
 import com.allen.hearme.core.ml.FeedbackRepository
 import com.allen.hearme.core.ml.IntentClassifier
@@ -30,15 +30,13 @@ import com.allen.hearme.core.ml.model.PersonalisationProfile
 import com.allen.hearme.core.ml.model.SpeechClassification
 import com.allen.hearme.core.ml.model.TrainingSample
 import com.allen.hearme.core.ml.model.TranscriptionResult
+import com.allen.hearme.media.RealMediaPlaybackController
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import javax.inject.Singleton
 
@@ -47,30 +45,6 @@ import javax.inject.Singleton
 private class StandaloneAudioSegmentProcessor : AudioSegmentProcessor {
     override suspend fun processSegment(segment: AudioSegment): HearMeResult<AudioSegment> {
         return HearMeResult.Success(segment)
-    }
-}
-
-private class StandaloneMediaPlaybackController : MediaPlaybackController {
-    override suspend fun pauseMedia(): HearMeResult<Unit> = HearMeResult.Success(Unit)
-    override suspend fun resumeMedia(): HearMeResult<Unit> = HearMeResult.Success(Unit)
-    override suspend fun lowerVolume(duckRatio: Float): HearMeResult<Unit> = HearMeResult.Success(Unit)
-    override suspend fun restoreVolume(): HearMeResult<Unit> = HearMeResult.Success(Unit)
-    override fun isMediaPlaying(): Boolean = false
-}
-
-private class StandaloneAudioFocusManager : AudioFocusManager {
-    private val _currentFocusState = MutableStateFlow(AudioFocusState.NO_FOCUS)
-    override val currentFocusState: StateFlow<AudioFocusState> = _currentFocusState.asStateFlow()
-
-    override fun hasFocus(): Boolean = false
-
-    override suspend fun requestAudioFocus(config: AudioFocusRequestConfig): HearMeResult<AudioFocusState> {
-        return HearMeResult.Success(AudioFocusState.NO_FOCUS)
-    }
-
-    override suspend fun abandonAudioFocus(): HearMeResult<Unit> {
-        _currentFocusState.value = AudioFocusState.NO_FOCUS
-        return HearMeResult.Success(Unit)
     }
 }
 
@@ -207,13 +181,29 @@ object ProductionHardwareModule {
     @Singleton
     fun provideAudioSegmentProcessor(): AudioSegmentProcessor = StandaloneAudioSegmentProcessor()
 
-    @Provides
-    @Singleton
-    fun provideMediaPlaybackController(): MediaPlaybackController = StandaloneMediaPlaybackController()
+    // ── REAL: Audio Focus ─────────────────────────────────────────────────────
 
     @Provides
     @Singleton
-    fun provideAudioFocusManager(): AudioFocusManager = StandaloneAudioFocusManager()
+    fun provideAudioFocusManager(
+        @ApplicationContext context: Context
+    ): AudioFocusManager = RealAudioFocusManager(context)
+
+    // ── REAL: Media Playback Controller ──────────────────────────────────────
+
+    @Provides
+    @Singleton
+    fun provideMediaPlaybackController(
+        @ApplicationContext context: Context,
+        audioFocusManager: AudioFocusManager,
+        preferencesRepository: UserPreferencesRepository,
+        dispatchers: DispatcherProvider
+    ): MediaPlaybackController = RealMediaPlaybackController(
+        context = context,
+        audioFocusManager = audioFocusManager,
+        preferencesRepository = preferencesRepository,
+        dispatchers = dispatchers
+    )
 
     @Provides
     @Singleton

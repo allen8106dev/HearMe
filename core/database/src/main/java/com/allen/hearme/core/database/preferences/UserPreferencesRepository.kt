@@ -21,7 +21,8 @@ enum class DetectionSensitivity(val value: Float, val label: String) {
 
 enum class MusicInterruptionBehavior(val label: String) {
     PAUSE_MUSIC("Pause Music"),
-    LOWER_VOLUME("Lower Volume (Duck)")
+    LOWER_VOLUME("Lower Volume (Duck)"),
+    DO_NOT_CONTROL("Do Not Control Media")
 }
 
 data class UserPreferences(
@@ -30,7 +31,9 @@ data class UserPreferences(
     val detectionSensitivity: DetectionSensitivity = DetectionSensitivity.MEDIUM,
     val preferredBehavior: MusicInterruptionBehavior = MusicInterruptionBehavior.PAUSE_MUSIC,
     val trainingRemindersEnabled: Boolean = true,
-    val onboardingCompleted: Boolean = false
+    val onboardingCompleted: Boolean = false,
+    val autoRestorePlayback: Boolean = true,
+    val restorationDelayMs: Long = 1500L
 )
 
 interface UserPreferencesRepository {
@@ -41,6 +44,8 @@ interface UserPreferencesRepository {
     suspend fun setPreferredBehavior(behavior: MusicInterruptionBehavior)
     suspend fun setTrainingReminders(enabled: Boolean)
     suspend fun setOnboardingCompleted(completed: Boolean)
+    suspend fun setAutoRestorePlayback(enabled: Boolean)
+    suspend fun setRestorationDelayMs(delayMs: Long)
 }
 
 class DataStoreUserPreferencesRepository(
@@ -54,6 +59,8 @@ class DataStoreUserPreferencesRepository(
         val PREFERRED_BEHAVIOR = stringPreferencesKey("pref_behavior")
         val TRAINING_REMINDERS = booleanPreferencesKey("pref_training_reminders")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("pref_onboarding_completed")
+        val AUTO_RESTORE_PLAYBACK = booleanPreferencesKey("pref_auto_restore_playback")
+        val RESTORATION_DELAY_MS = stringPreferencesKey("pref_restoration_delay_ms")
     }
 
     override val preferencesFlow: Flow<UserPreferences> = dataStore.data.map { prefs ->
@@ -69,7 +76,9 @@ class DataStoreUserPreferencesRepository(
             detectionSensitivity = sensitivity,
             preferredBehavior = behavior,
             trainingRemindersEnabled = prefs[Keys.TRAINING_REMINDERS] ?: true,
-            onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: false
+            onboardingCompleted = prefs[Keys.ONBOARDING_COMPLETED] ?: false,
+            autoRestorePlayback = prefs[Keys.AUTO_RESTORE_PLAYBACK] ?: true,
+            restorationDelayMs = prefs[Keys.RESTORATION_DELAY_MS]?.toLongOrNull() ?: 1500L
         )
     }
 
@@ -95,5 +104,13 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setOnboardingCompleted(completed: Boolean) {
         dataStore.edit { it[Keys.ONBOARDING_COMPLETED] = completed }
+    }
+
+    override suspend fun setAutoRestorePlayback(enabled: Boolean) {
+        dataStore.edit { it[Keys.AUTO_RESTORE_PLAYBACK] = enabled }
+    }
+
+    override suspend fun setRestorationDelayMs(delayMs: Long) {
+        dataStore.edit { it[Keys.RESTORATION_DELAY_MS] = delayMs.toString() }
     }
 }

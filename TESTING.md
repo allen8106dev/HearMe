@@ -28,6 +28,13 @@ HearMe enforces strict testability through Clean Architecture:
 - `vadSilenceHangoverPreservesSpeechStateTemporarily`: Verifies hangover window maintains active speech during brief pauses between words, and clears after timeout.
 - `vadResetCleansInternalState`: Verifies that `reset()` reinitializes noise floor and temporal timestamps.
 
+### `core:media` (`CoreMediaTest.kt`)
+- `playbackControllerRecordsActionsAndVolume`: Verifies pause, resume, ducking, and volume restore commands.
+- `audioFocusManagerRequestsAndAbandonsFocus`: Verifies audio focus request and abandon transitions.
+- `tracksMediaMetadataAndNotificationAccess`: Verifies reactive emissions of `MediaTrackInfo` and Notification Listener access state.
+- `restorePlaybackResumesOnlyIfPreviouslyPlaying`: Verifies safeguard that HearMe NEVER resumes music if it was already paused before the interruption occurred.
+- `cancelInterruptionClearsActiveRecord`: Verifies that cancelling an interruption safely clears the active `InterruptionRecord`.
+
 ### `core:bluetooth` (`CoreBluetoothTest.kt`)
 - `monitorTracksEarphoneConnectionTransitions`: Verifies connection, disconnection, and device metadata propagation.
 - `monitorTracksWiredAndUsbHeadsets`: Verifies 3.5 mm wired headphones and USB-C headsets are correctly identified.
@@ -41,23 +48,34 @@ HearMe enforces strict testability through Clean Architecture:
 - `orchestratorTransitionsToMicUnavailableOnPermissionError`: Verifies transition to `MICROPHONE_UNAVAILABLE` on `SecurityException`.
 - `fakeOrchestratorTransitionsCorrectly`: Verifies fake orchestrator lifecycle.
 
+### `core:database` (`CoreDatabaseTest.kt`)
+- `listeningSessionRepositoryPerformsCrud`: Verifies session creation, updates, and clearing.
+- `trainingExampleRepositoryManagesExamples`: Verifies training example storage and retrieval.
+- `modelMetadataRepositoryStoresAndRetrieves`: Verifies metadata lifecycle tracking.
+- `userPreferencesRepositoryUpdatesAndEmits`: Verifies serialization and flow emissions for sensitivity, auto-activation, `DO_NOT_CONTROL`, `autoRestorePlayback`, and `restorationDelayMs`.
+
 ### `app` (`HearMeViewModelTest.kt`)
 - `togglingSmartListeningUpdatesState`: Verifies ViewModel routes toggle commands to `ServiceController` without direct Android Context dependency.
 - `earphoneConnectionUpdatesUiState`: Verifies earphone state updates trigger auto-activation and UI reflection.
 - `preferencesUpdateChangesUiState`: Verifies changes to sensitivity and music interruption mode propagate to UI state.
+- `mediaStateObservationUpdatesUiState`: Verifies live updates of track title, artist, and Notification Listener access.
+- `simulateMediaInterruptionPausesThenRestores`: Verifies the developer interruption simulation action triggers pause and restoration.
 
 ---
 
-## 3. Milestone 2 Verification Summary
+## 3. Milestone 3 Verification Summary
 
 - **Full Test Suite Execution (`.\gradlew.bat test`)**:
-  - `BUILD SUCCESSFUL` across all 13 modules.
-  - Zero test failures, 100% test pass rate across core contracts, real VAD engine, and feature modules.
+  - `BUILD SUCCESSFUL` across all 13 modules (259 actionable tasks, 100% test pass rate).
+  - Hermetic JVM execution with zero emulator dependency for unit test runs.
 - **Hardware Abstraction & DI Verification**:
-  - `RealAudioCaptureManager` wired via Hilt using `VOICE_RECOGNITION` audio source and 16 kHz mono PCM 16-bit format.
-  - `RealEarphoneConnectionMonitor` wired via Hilt implementing both `EarphoneConnectionMonitor` and `AudioDeviceStateProvider`.
-  - `EnergyVadDetector` wired via Hilt implementing `SpeechActivityDetector`.
-  - `SmartListeningService` registered as foreground service (`microphone`) with persistent notification.
+  - `RealMediaPlaybackController` wired via Hilt using `MediaSessionManager` and `HearMeNotificationListenerService`.
+  - `RealAudioFocusManager` wired via Hilt managing transient ducking and call detection.
+  - Full restoration safeguards verified in automated unit test assertions.
+- **Emulator Verification**:
+  - Debug APK assembled and installed on `emulator-5554`.
+  - App launched cleanly with zero runtime crashes.
+  - UI dynamically renders Notification Access explanation and Now Playing status card.
   - `ServiceController` abstraction decouples ViewModels from `android.content.Context`.
 - **Emulator Validation (`emulator-5554`)**:
   - Debug APK built and installed via `adb install -r`.

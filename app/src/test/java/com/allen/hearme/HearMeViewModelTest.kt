@@ -7,6 +7,9 @@ import com.allen.hearme.core.database.fake.FakeListeningSessionRepository
 import com.allen.hearme.core.database.fake.FakeUserPreferencesRepository
 import com.allen.hearme.core.database.preferences.DetectionSensitivity
 import com.allen.hearme.core.database.preferences.MusicInterruptionBehavior
+import com.allen.hearme.core.media.fake.FakeMediaPlaybackController
+import com.allen.hearme.core.media.model.MediaTrackInfo
+import com.allen.hearme.core.media.model.PlaybackAction
 import com.allen.hearme.feature.smartlistening.FakeListeningOrchestrator
 import com.allen.hearme.service.FakeServiceController
 import com.allen.hearme.ui.HearMeViewModel
@@ -33,6 +36,7 @@ class HearMeViewModelTest {
     private lateinit var earphoneMonitor: FakeEarphoneConnectionMonitor
     private lateinit var preferencesRepo: FakeUserPreferencesRepository
     private lateinit var sessionRepo: FakeListeningSessionRepository
+    private lateinit var mediaController: FakeMediaPlaybackController
     private lateinit var viewModel: HearMeViewModel
 
     @Before
@@ -43,13 +47,15 @@ class HearMeViewModelTest {
         earphoneMonitor = FakeEarphoneConnectionMonitor()
         preferencesRepo = FakeUserPreferencesRepository()
         sessionRepo = FakeListeningSessionRepository()
+        mediaController = FakeMediaPlaybackController()
 
         viewModel = HearMeViewModel(
             serviceController = serviceController,
             orchestrator = orchestrator,
             earphoneMonitor = earphoneMonitor,
             preferencesRepository = preferencesRepo,
-            sessionRepository = sessionRepo
+            sessionRepository = sessionRepo,
+            mediaPlaybackController = mediaController
         )
     }
 
@@ -96,5 +102,43 @@ class HearMeViewModelTest {
 
         assertEquals(DetectionSensitivity.HIGH, viewModel.uiState.value.preferences.detectionSensitivity)
         assertEquals(MusicInterruptionBehavior.LOWER_VOLUME, viewModel.uiState.value.preferences.preferredBehavior)
+    }
+
+    @Test
+    fun mediaStateObservationUpdatesUiState() = runTest {
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.hasNotificationListenerAccess)
+        assertEquals(null, viewModel.uiState.value.activeMediaTrack)
+
+        mediaController.setNlsAccess(true)
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.hasNotificationListenerAccess)
+
+        val track = MediaTrackInfo(
+            sessionId = "session-1",
+            packageName = "com.spotify.music",
+            title = "Starboy",
+            artist = "The Weeknd",
+            album = "Starboy",
+            isPlaying = true,
+            isPaused = false,
+            playbackPositionMs = 15000L,
+            canPause = true,
+            canPlay = true
+        )
+        mediaController.setActiveTrack(track)
+        advanceUntilIdle()
+
+        assertEquals("Starboy", viewModel.uiState.value.activeMediaTrack?.title)
+        assertEquals("The Weeknd", viewModel.uiState.value.activeMediaTrack?.artist)
+    }
+
+    @Test
+    fun simulateMediaInterruptionPausesThenRestores() = runTest {
+        advanceUntilIdle()
+        viewModel.simulateMediaInterruption()
+        advanceUntilIdle()
+
+        assertTrue(mediaController.actionHistory.contains(PlaybackAction.PAUSE))
     }
 }

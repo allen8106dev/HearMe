@@ -1,5 +1,7 @@
 package com.allen.hearme.ui
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.allen.hearme.core.bluetooth.EarphoneConnectionMonitor
@@ -10,6 +12,8 @@ import com.allen.hearme.core.database.preferences.MusicInterruptionBehavior
 import com.allen.hearme.core.database.preferences.UserPreferences
 import com.allen.hearme.core.database.preferences.UserPreferencesRepository
 import com.allen.hearme.core.database.repository.ListeningSessionRepository
+import com.allen.hearme.core.media.MediaPlaybackController
+import com.allen.hearme.core.media.model.MediaTrackInfo
 import com.allen.hearme.feature.smartlistening.ListeningOrchestrator
 import com.allen.hearme.feature.smartlistening.model.ListeningState
 import com.allen.hearme.feature.smartlistening.model.ListeningTrigger
@@ -17,10 +21,8 @@ import com.allen.hearme.service.ServiceController
 import com.allen.hearme.service.SmartListeningService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -33,7 +35,11 @@ data class MainUiState(
     val rmsEnergy: Float = 0.0f,
     val isSpeechActive: Boolean = false,
     val preferences: UserPreferences = UserPreferences(),
-    val sessions: List<ListeningSessionEntity> = emptyList()
+    val sessions: List<ListeningSessionEntity> = emptyList(),
+    /** Active media track detected via MediaSessionManager, null if nothing is playing. */
+    val activeMediaTrack: MediaTrackInfo? = null,
+    /** Whether the user has granted Notification Listener access to this app. */
+    val hasNotificationListenerAccess: Boolean = false
 )
 
 @HiltViewModel
@@ -42,7 +48,8 @@ class HearMeViewModel @Inject constructor(
     private val orchestrator: ListeningOrchestrator,
     private val earphoneMonitor: EarphoneConnectionMonitor,
     private val preferencesRepository: UserPreferencesRepository,
-    private val sessionRepository: ListeningSessionRepository
+    private val sessionRepository: ListeningSessionRepository,
+    private val mediaPlaybackController: MediaPlaybackController
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUiState())
@@ -54,6 +61,7 @@ class HearMeViewModel @Inject constructor(
         observeListeningState()
         observeSessions()
         observeServiceState()
+        observeMediaState()
     }
 
     private fun observeEarphoneConnection() {
@@ -96,22 +104,25 @@ class HearMeViewModel @Inject constructor(
     private fun observeListeningState() {
         viewModelScope.launch {
             orchestrator.currentState.collect { state ->
-                val statusText = when (state) {
-                    ListeningState.STANDBY           -> "Standby • Ready to listen"
-                    ListeningState.STARTING          -> "Starting • Initialising microphone"
-                    ListeningState.ACTIVE_LISTENING  -> "Active • Monitoring speech"
-                    ListeningState.SPEECH_DETECTED   -> "Speech detected • Evaluating intent"
-                    ListeningState.INTERRUPTING_MUSIC -> "Speech directed to you • Music paused"
-                    ListeningState.MICROPHONE_UNAVAILABLE -> "Microphone unavailable"
-                    ListeningState.INTERRUPTED       -> "Interrupted • Resuming"
-                    ListeningState.STOPPED           -> "Stopped"
-                    ListeningState.ERROR             -> "Error initialising microphone"
+                // Only update from orchestrator if foreground service is not running
+                if (!SmartListeningService.isServiceRunning.value) {
+                    val statusText = when (state) {
+                        ListeningState.STANDBY           -> "Standby • Ready to listen"
+                        ListeningState.STARTING          -> "Starting • Initialising microphone"
+                        ListeningState.ACTIVE_LISTENING  -> "Active • Monitoring speech"
+                        ListeningState.SPEECH_DETECTED   -> "Speech detected • Evaluating intent"
+                        ListeningState.INTERRUPTING_MUSIC -> "Speech directed to you • Music paused"
+                        ListeningState.MICROPHONE_UNAVAILABLE -> "Microphone unavailable"
+                        ListeningState.INTERRUPTED       -> "Interrupted • Resuming"
+                        ListeningState.STOPPED           -> "Stopped"
+                        ListeningState.ERROR             -> "Error initialising microphone"
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        listeningState = state,
+                        isSmartListeningOn = orchestrator.isListening,
+                        listeningStatusText = statusText
+                    )
                 }
-                _uiState.value = _uiState.value.copy(
-                    listeningState = state,
-                    isSmartListeningOn = orchestrator.isListening,
-                    listeningStatusText = statusText
-                )
             }
         }
     }
@@ -138,7 +149,6 @@ class HearMeViewModel @Inject constructor(
         }
         viewModelScope.launch {
             SmartListeningService.liveServiceState.collect { serviceState ->
-                // Mirror service state into the orchestrator-driven state text if service is running
                 if (SmartListeningService.isServiceRunning.value) {
                     val statusText = when (serviceState) {
                         ListeningState.ACTIVE_LISTENING  -> "Active • Monitoring speech"
@@ -154,7 +164,29 @@ class HearMeViewModel @Inject constructor(
                                 serviceState == ListeningState.SPEECH_DETECTED,
                         listeningStatusText = statusText
                     )
+                } else if (serviceState == ListeningState.STANDBY || serviceState == ListeningState.STOPPED) {
+                    _uiState.value = _uiState.value.copy(
+                        listeningState = ListeningState.STANDBY,
+                        isSmartListeningOn = false,
+                        listeningStatusText = "Standby • Ready to listen",
+                        rmsEnergy = 0.0f,
+                        isSpeechActive = false
+                    )
                 }
+            }
+        }
+    }
+
+    /** Observe media session and Notification Listener access state. */
+    private fun observeMediaState() {
+        viewModelScope.launch {
+            mediaPlaybackController.activeMediaTrack.collect { track ->
+                _uiState.value = _uiState.value.copy(activeMediaTrack = track)
+            }
+        }
+        viewModelScope.launch {
+            mediaPlaybackController.hasNotificationListenerAccess.collect { granted ->
+                _uiState.value = _uiState.value.copy(hasNotificationListenerAccess = granted)
             }
         }
     }
@@ -162,12 +194,27 @@ class HearMeViewModel @Inject constructor(
     fun toggleSmartListening(enable: Boolean) {
         viewModelScope.launch {
             if (enable) {
-                serviceController.startListeningService()
-                preferencesRepository.setListeningEnabled(true)
+                val started = serviceController.startListeningService()
+                if (started) {
+                    orchestrator.startListening(ListeningTrigger.USER_MANUAL)
+                    preferencesRepository.setListeningEnabled(true)
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        listeningState = ListeningState.MICROPHONE_UNAVAILABLE,
+                        listeningStatusText = "Microphone permission required"
+                    )
+                }
             } else {
                 serviceController.stopListeningService()
                 orchestrator.stopListening()
                 preferencesRepository.setListeningEnabled(false)
+                _uiState.value = _uiState.value.copy(
+                    isSmartListeningOn = false,
+                    listeningState = ListeningState.STANDBY,
+                    listeningStatusText = "Standby • Ready to listen",
+                    rmsEnergy = 0.0f,
+                    isSpeechActive = false
+                )
             }
         }
     }
@@ -196,6 +243,12 @@ class HearMeViewModel @Inject constructor(
         }
     }
 
+    fun setAutoRestorePlayback(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.setAutoRestorePlayback(enabled)
+        }
+    }
+
     fun completeOnboarding() {
         viewModelScope.launch {
             preferencesRepository.setOnboardingCompleted(true)
@@ -205,6 +258,19 @@ class HearMeViewModel @Inject constructor(
     fun clearHistory() {
         viewModelScope.launch {
             sessionRepository.clearAllSessions()
+        }
+    }
+
+    /**
+     * Developer test action: triggers a real media interruption (pause or duck)
+     * and after a short delay restores it. Use this to verify media control
+     * without needing actual speech recognition.
+     */
+    fun simulateMediaInterruption() {
+        viewModelScope.launch {
+            mediaPlaybackController.pauseMedia()
+            kotlinx.coroutines.delay(3000L)
+            mediaPlaybackController.restorePlayback()
         }
     }
 }

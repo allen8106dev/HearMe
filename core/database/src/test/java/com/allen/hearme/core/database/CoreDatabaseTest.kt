@@ -97,5 +97,14 @@ class CoreDatabaseTest {
         assertEquals(DetectionSensitivity.HIGH, prefs.detectionSensitivity)
         assertEquals(MusicInterruptionBehavior.LOWER_VOLUME, prefs.preferredBehavior)
         assertTrue(prefs.onboardingCompleted)
+
+        repo.setPreferredBehavior(MusicInterruptionBehavior.DO_NOT_CONTROL)
+        repo.setAutoRestorePlayback(false)
+        repo.setRestorationDelayMs(2500L)
+
+        val updatedPrefs = repo.preferencesFlow.first()
+        assertEquals(MusicInterruptionBehavior.DO_NOT_CONTROL, updatedPrefs.preferredBehavior)
+        assertEquals(false, updatedPrefs.autoRestorePlayback)
+        assertEquals(2500L, updatedPrefs.restorationDelayMs)
     }
 }

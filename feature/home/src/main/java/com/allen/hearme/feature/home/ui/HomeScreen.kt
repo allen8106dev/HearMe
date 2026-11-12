@@ -25,6 +25,9 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.HeadphonesBattery
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.ModelTraining
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.MusicOff
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
@@ -46,7 +49,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.allen.hearme.core.media.model.MediaTrackInfo
 
 @Composable
 fun HomeScreen(
@@ -57,6 +62,10 @@ fun HomeScreen(
     isEarphoneConnected: Boolean,
     rmsEnergy: Float = 0f,
     isSpeechActive: Boolean = false,
+    activeMediaTrack: MediaTrackInfo? = null,
+    hasNotificationListenerAccess: Boolean = false,
+    onGrantNotificationAccess: () -> Unit = {},
+    onSimulateInterruption: () -> Unit = {},
     onNavigateToTraining: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -256,6 +265,146 @@ fun HomeScreen(
             }
         }
 
+        // ── Notification Listener Access Card (shown when access is not granted) ─
+        AnimatedVisibility(visible = !hasNotificationListenerAccess) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Media Access Not Granted",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "To pause or duck music when you're spoken to, HearMe needs Notification Listener access. This is used only to identify active media sessions — notification content is never read.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onGrantNotificationAccess,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Grant Media Access")
+                    }
+                }
+            }
+        }
+
+        // ── Now Playing Card (shown when NLS access is granted and media is detected) ─
+        AnimatedVisibility(visible = hasNotificationListenerAccess) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                color = if (activeMediaTrack?.isPlaying == true)
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surface,
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (activeMediaTrack != null) Icons.Default.MusicNote
+                                          else Icons.Default.MusicOff,
+                            contentDescription = "Media",
+                            tint = if (activeMediaTrack?.isPlaying == true)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Now Playing",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        if (activeMediaTrack != null) {
+                            Text(
+                                text = activeMediaTrack.title ?: activeMediaTrack.packageName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val artist = activeMediaTrack.artist
+                            if (artist != null) {
+                                Text(
+                                    text = artist,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = "No active media",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+
+                    if (activeMediaTrack != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (activeMediaTrack.isPlaying) Color(0xFFE8F5E9)
+                                    else Color(0xFFECEFF1)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (activeMediaTrack.isPlaying) "PLAYING" else "PAUSED",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (activeMediaTrack.isPlaying) Color(0xFF2E7D32)
+                                        else Color(0xFF546E7A)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // ── Earphone Connection Status Card ────────────────────────────────────
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -382,6 +531,25 @@ fun HomeScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+            }
+        }
+
+        // ── Developer: Simulate Media Interruption ─────────────────────────────
+        AnimatedVisibility(visible = hasNotificationListenerAccess && activeMediaTrack != null) {
+            OutlinedButton(
+                onClick = onSimulateInterruption,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Simulate Media Interruption (Dev)")
             }
         }
 

@@ -27,6 +27,7 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:bluetooth"))
+    implementation(project(":core:media"))
     implementation(project(":feature:smartlistening"))
 
     implementation(platform(libs.androidx.compose.bom))
